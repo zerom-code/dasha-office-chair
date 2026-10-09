@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f7f4eb" />
+    <meta
+      name="description"
+      content="Даша на кресле. 12 уровней, две ноги и один офис."
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Даша" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./v2/style.css" />
+    <title>Даша на колёсиках</title>
+  </head>
+  <body>
+    <div id="device-gate" class="gate" hidden>
+      <span data-icon="chair"></span>
+      <h1>Даша на колёсиках</h1>
+      <p>Открой на iPhone</p>
+    </div>
+    <div id="rotate-gate" class="gate" hidden>
+      <span class="phone-symbol">↻</span>
+      <p>Поверни iPhone</p>
+    </div>
+    <main id="app" class="shell" hidden>
+      <section id="menu" class="view">
+        <header>
+          <span class="menu-name">Даша</span
+          ><button
+            class="icon-button"
+            data-action="sound"
+            aria-label="Выключить звук"
+            data-icon="sound"
+          ></button>
+        </header>
+        <h1 class="menu-title">На колёсиках</h1>
+        <div class="menu-office">
+          <canvas
+            id="menu-canvas"
+            aria-label="Даша на кресле в офисе"
+            role="img"
+          ></canvas>
+        </div>
+        <div class="menu-buttons">
+          <button id="play-main" class="button primary" data-action="play">
+            Поехали <span data-icon="arrow"></span></button
+          ><button class="button secondary" data-action="free">
+            Покататься
+          </button>
+        </div>
+        <nav class="menu-nav">
+          <button data-action="missions">
+            <span data-icon="levels"></span
+            ><span
+              >Уровни <small id="menu-progress">0 / 12</small></span
+            ></button
+          ><button data-action="wardrobe">
+            <span data-icon="shirt"></span><span>Одежда</span></button
+          ><button data-action="install" aria-label="На экран Домой">
+            <span data-icon="download"></span>
+          </button>
+        </nav>
+      </section>
+      <section id="missions" class="view" hidden>
+        <header>
+          <button
+            class="icon-button"
+            data-action="menu"
+            aria-label="В меню"
+            data-icon="back"
+          ></button>
+          <h1>Уровни</h1>
+          <span></span>
+        </header>
+        <div id="mission-list" class="mission-list"></div>
+        <div class="pager">
+          <button
+            class="icon-button"
+            id="levels-prev"
+            aria-label="Предыдущие уровни"
+            data-icon="back"
+          ></button
+          ><span id="levels-page"></span
+          ><button
+            class="icon-button"
+            id="levels-next"
+            aria-label="Следующие уровни"
+            data-icon="arrow"
+          ></button>
+        </div>
+      </section>
+      <section id="wardrobe" class="view" hidden>
+        <header>
+          <button
+            class="icon-button"
+            data-action="wardrobe-back"
+            aria-label="Назад"
+            data-icon="back"
+          ></button>
+          <h1>Одежда</h1>
+          <span></span>
+        </header>
+        <canvas
+          id="wardrobe-canvas"
+          class="wardrobe-preview"
+          aria-label="Даша в выбранной одежде"
+          role="img"
+        ></canvas>
+        <div class="wardrobe-tabs" role="tablist">
+          <button data-category="color" role="tab" aria-selected="true">
+            Цвет</button
+          ><button data-category="print" role="tab" aria-selected="false">
+            Принт</button
+          ><button data-category="style" role="tab" aria-selected="false">
+            Фасон
+          </button>
+        </div>
+        <div id="wardrobe-list" class="wardrobe-list"></div>
+        <div class="pager">
+          <button
+            class="icon-button"
+            id="wardrobe-prev"
+            aria-label="Предыдущая одежда"
+            data-icon="back"
+          ></button
+          ><span id="wardrobe-page"></span
+          ><button
+            class="icon-button"
+            id="wardrobe-next"
+            aria-label="Следующая одежда"
+            data-icon="arrow"
+          ></button>
+        </div>
+      </section>
+      <section id="game" class="view" hidden>
+        <header>
+          <button
+            class="icon-button"
+            data-action="pause"
+            aria-label="Пауза"
+            data-icon="pause"
+          ></button>
+          <div class="game-heading">
+            <small id="game-number"></small>
+            <h1 id="game-title"></h1>
+          </div>
+          <button
+            class="icon-button"
+            data-action="sound"
+            aria-label="Выключить звук"
+            data-icon="sound"
+          ></button>
+        </header>
+        <div class="objective">
+          <span id="objective-text"></span><span id="timer">0:00</span>
+        </div>
+        <div class="game-office">
+          <canvas
+            id="game-canvas"
+            aria-label="Игровое поле офиса"
+            role="img"
+          ></canvas>
+          <div id="coffee-level" hidden>☕ <b>100%</b></div>
+        </div>
+        <div class="foot-controls">
+          <button
+            id="foot-left"
+            class="foot-button"
+            aria-label="Левая нога"
+            aria-pressed="false"
+          >
+            <span data-icon="shoe"></span>Левая</button
+          ><span id="brake-indicator" data-icon="pause"></span
+          ><button
+            id="foot-right"
+            class="foot-button"
+            aria-label="Правая нога"
+            aria-pressed="false"
+          >
+            <span data-icon="shoe"></span>Правая
+          </button>
+        </div>
+      </section>
+    </main>
+    <dialog id="intro-dialog">
+      <button
+        class="dialog-close icon-button"
+        data-close
+        aria-label="Закрыть"
+        data-icon="close"
+      ></button
+      ><span id="intro-number" class="muted"></span>
+      <h2 id="intro-title"></h2>
+      <p id="intro-text"></p>
+      <div id="first-help" class="first-help">
+        <p>
+          Одна нога — толчок и поворот.<br />Коротко обе — прямо.<br />Держи обе
+          — тормоз.
+        </p>
+      </div>
+      <button id="start-mission" class="button primary">
+        Поехали <span data-icon="arrow"></span>
+      </button>
+    </dialog>
+    <dialog id="pause-dialog">
+      <h2>Пауза</h2>
+      <div class="dialog-stack">
+        <button class="button primary" data-action="resume">Продолжить</button
+        ><button class="button secondary" data-action="restart">Заново</button
+        ><button class="text-button" data-action="exit">В меню</button>
+      </div>
+    </dialog>
+    <dialog id="win-dialog">
+      <div id="win-stars" class="win-stars"></div>
+      <h2 id="win-title"></h2>
+      <div class="reward">
+        <span class="muted">Награда</span
+        ><canvas
+          id="reward-canvas"
+          aria-label="Новая одежда"
+          role="img"
+        ></canvas>
+        <p id="reward-name"></p>
+        <button class="text-button" data-action="try-reward">
+          Примерить <span data-icon="shirt"></span>
+        </button>
+      </div>
+      <button id="next-mission" class="button primary">
+        Дальше <span data-icon="arrow"></span>
+      </button>
+      <div class="win-bottom">
+        <button class="text-button" data-action="retry">Заново</button
+        ><button class="text-button" data-action="exit">В меню</button>
+      </div>
+    </dialog>
+    <dialog id="letter-dialog">
+      <p id="letter-text" class="letter-text"></p>
+      <button class="button primary" data-action="exit">
+        В меню <span data-icon="heart"></span>
+      </button>
+    </dialog>
+    <dialog id="install-dialog">
+      <button
+        class="dialog-close icon-button"
+        data-close
+        aria-label="Закрыть"
+        data-icon="close"
+      ></button>
+      <h2>На экран Домой</h2>
+      <p id="install-text">Safari → «Поделиться» → «На экран Домой».</p>
+      <button class="button primary" data-close>Готово</button>
+    </dialog>
+    <div
+      id="global-toast"
+      class="global-toast"
+      role="status"
+      aria-live="polite"
+    ></div>
+    <div id="update-banner" class="update-banner" hidden>
+      <span>Новая версия</span
+      ><button id="apply-update" class="text-button">Обновить</button>
+    </div>
+    <noscript>Для игры нужен JavaScript.</noscript>
+    <script type="module" src="./v2/app-2.0.1.js"></script>
+  </body>
+</html>
