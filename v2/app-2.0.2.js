@@ -24,7 +24,8 @@ const $ = (id) => document.getElementById(id);
 const basePath = new URL("./", document.baseURI).pathname;
 const SAVE_KEY =
   "office-chair-save-v1" + (basePath === "/" ? "" : `:${basePath}`);
-const isIPhone = /iPhone|iPod/.test(navigator.userAgent);
+const isIOS = /iPhone|iPod/.test(navigator.userAgent);
+const isPhone = isIOS || /Android/i.test(navigator.userAgent);
 let data = {
   version: 2,
   results: {},
@@ -116,7 +117,7 @@ function hydrate(root = document) {
     .forEach((e) => (e.innerHTML = icon(e.dataset.icon)));
 }
 hydrate();
-if (isIPhone) lockTouchViewport();
+if (isPhone) lockTouchViewport();
 function save() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -261,7 +262,7 @@ function closeIntro() {
   showView(introReturnView);
 }
 function prepareMission(id, free = false, restore = false) {
-  if (!isIPhone || (!free && !unlocked(id))) return;
+  if (!isPhone || (!free && !unlocked(id))) return;
   introReturnView = view === "missions" ? "missions" : "menu";
   clearInputs();
   game = null;
@@ -554,9 +555,9 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", saveRun);
 function deviceLayout() {
   const landscape = innerWidth > innerHeight;
-  $("device-gate").hidden = isIPhone;
-  $("app").hidden = !isIPhone || landscape;
-  $("rotate-gate").hidden = !isIPhone || !landscape;
+  $("device-gate").hidden = isPhone;
+  $("app").hidden = !isPhone || landscape;
+  $("rotate-gate").hidden = !isPhone || !landscape;
   if (landscape && game?.phase === "playing") pause();
   if (view === "wardrobe") requestAnimationFrame(() => renderWardrobe());
 }
@@ -566,7 +567,9 @@ function updateInstall() {
   $("install-text").textContent =
     navigator.standalone || matchMedia("(display-mode: standalone)").matches
       ? "Игра на главном экране."
-      : "Safari → «Поделиться» → «На экран Домой».";
+      : isIOS
+        ? "Safari → «Поделиться» → «На экран Домой»."
+        : "Меню браузера ⋮ → «Установить приложение» или «Добавить на главный экран».";
 }
 async function checkOffline() {
   const worker = navigator.serviceWorker?.controller || registration?.active;
@@ -583,7 +586,7 @@ async function checkOffline() {
         channel.port1.close();
         return;
       }
-      legacyWorker = e.data.version !== "office-chair-v2.0.1";
+      legacyWorker = e.data.version !== "office-chair-v2.0.2";
       cacheReady = !!e.data.ready && !legacyWorker;
       if (legacyWorker && registration?.waiting) {
         $("update-banner").hidden = true;
@@ -595,7 +598,7 @@ async function checkOffline() {
   };
   worker.postMessage({ type: "CACHE_STATUS" }, [channel.port2]);
 }
-if (isIPhone && "serviceWorker" in navigator && isSecureContext) {
+if (isPhone && "serviceWorker" in navigator && isSecureContext) {
   navigator.serviceWorker
     .register("./sw.js", { scope: "./" })
     .then(async (reg) => {
@@ -640,7 +643,7 @@ function loop(t) {
   clock += delta;
   hudClock += delta;
   saveClock += delta;
-  if (isIPhone && !$("app").hidden) {
+  if (isPhone && !$("app").hidden) {
     if (view === "game" && game) {
       if (game.phase === "playing") {
         acc = Math.min(acc + delta, 0.1);
@@ -679,7 +682,7 @@ function loop(t) {
 }
 soundButtons();
 updateMenu();
-if (isIPhone) {
+if (isPhone) {
   save();
   requestAnimationFrame(loop);
   if (new URLSearchParams(location.search).get("mode") === "free")

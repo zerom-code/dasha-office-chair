@@ -1,11 +1,11 @@
-const VERSION = "office-chair-v2.0.1";
+const VERSION = "office-chair-v2.0.2";
 const CACHE_PREFIX = `office-chair@${self.registration.scope}:`;
 const CACHE = CACHE_PREFIX + VERSION;
 const ASSETS = [
   "./",
   "./index.html",
   "./v2/style.css",
-  "./v2/app-2.0.1.js",
+  "./v2/app-2.0.2.js",
   "./v2/engine.js",
   "./v2/render.js",
   "./v2/icons.js",
