@@ -744,7 +744,7 @@ async function checkOffline() {
 }
 if ("serviceWorker" in navigator && isSecureContext) {
   navigator.serviceWorker
-    .register("./sw.js", { scope: "./" })
+    .register("./sw.js?v=3.0.2", { scope: "./" })
     .then(async (reg) => {
       registration = reg;
       if (reg.waiting) $("update-banner").hidden = false;
