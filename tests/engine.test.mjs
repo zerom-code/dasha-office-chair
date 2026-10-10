@@ -11,7 +11,8 @@ import {
   OBSTACLES,
   snapshot,
   layoutFor,
-} from "../v2/engine.js";
+} from "../v3/engine.js";
+import { footprintsFor, distanceToSolid } from "../v3/geometry.js";
 const tick = (g, s) => {
   for (let i = 0; i < Math.ceil(s * 120); i++) step(g, 1 / 120);
 };
@@ -45,8 +46,8 @@ test("single feet turn in opposite directions and held pair brakes", () => {
   tick(g, 1);
   assert.ok(speed(g) < 5);
 });
-test("all twelve missions support pickup, route checkpoints, stationary completion and scoring", () => {
-  for (const m of MISSIONS) {
+test("all chair missions support pickup, route checkpoints, stationary completion and scoring", () => {
+  for (const m of MISSIONS.filter((m) => !m.tasks)) {
     const g = createGame(m.id);
     let iterations = 0;
     while (g.phase === "playing" && iterations++ < 10) {
@@ -102,6 +103,7 @@ test("paused simulation does not advance and snapshot restores run without held 
 
 test("all starts and targets remain clear of furniture in every layout", () => {
   for (const m of MISSIONS) {
+    if (m.tasks) continue;
     const g = createGame(m.id),
       positions = [{ x: g.x, y: g.y }];
     for (
@@ -124,16 +126,50 @@ test("all starts and targets remain clear of furniture in every layout", () => {
         pos.x > 86 && pos.x < 838 && pos.y > 111 && pos.y < 911,
         m.title,
       );
-      for (const o of g.layout.obstacles) {
-        const x = Math.max(o.x, Math.min(o.x + o.w, pos.x)),
-          y = Math.max(o.y, Math.min(o.y + o.h, pos.y));
-        assert.ok(
-          Math.hypot(pos.x - x, pos.y - y) >= 21,
-          `${m.title}: target overlaps ${o.type}`,
-        );
-      }
+      for (const o of g.layout.obstacles)
+        for (const solid of footprintsFor(o)) {
+          assert.ok(
+            distanceToSolid(pos.x, pos.y, solid) >= 21,
+            `${m.title}: target overlaps ${o.type}`,
+          );
+        }
     }
   }
+});
+test("the lane beneath the container shadows stays open, while container bases are solid", () => {
+  const g = createGame(0, true);
+  g.x = 610;
+  g.y = 245;
+  g.vx = 130;
+  tick(g, 0.6);
+  assert.ok(g.x > 660);
+  assert.equal(g.hits, 0);
+  const container = footprintsFor(OBSTACLES.find((o) => o.type === "boxes"))[3];
+  g.x = container.x - 22;
+  g.y = container.y + 15;
+  g.vx = 140;
+  g.vy = 0;
+  tick(g, 0.1);
+  assert.ok(g.x <= container.x - 21);
+  assert.ok(g.hits > 0);
+});
+test("timeout plays the chair fall once, freezes controls, then reports defeat", () => {
+  const g = createGame(12);
+  g.time = MISSIONS[12].timeLimit - 0.02;
+  step(g, 0.03);
+  assert.equal(g.phase, "falling");
+  inputFoot(g, "left", true);
+  assert.equal(g.feet.left, false);
+  tick(g, 1.5);
+  assert.equal(g.phase, "lost");
+  assert.equal(g.events.filter((event) => event.type === "lose").length, 1);
+  const t = g.time;
+  tick(g, 3);
+  assert.equal(g.time, t);
+  const free = createGame(12, true);
+  free.time = 200;
+  step(free, 0.03);
+  assert.equal(free.phase, "playing");
 });
 test("late levels use different furniture layouts and moved mat changes friction", () => {
   const base = layoutFor(0);

@@ -1,4 +1,27 @@
+import {
+  CHAIR_RADIUS,
+  WALK_RADIUS,
+  OFFICE_BOUNDS,
+  footprintsFor,
+} from "./geometry.js";
+import {
+  WALK_TASKS,
+  BREAK_TASKS,
+  SHIFT_TASKS,
+  STREET,
+  WORK_POINTS,
+  createWorkState,
+  currentTask,
+  taskReady,
+  taskTarget,
+  stepWorkday,
+  actionFor,
+  interact as workInteract,
+  workClock,
+  clockLabel,
+} from "./workday.js";
 export const WORLD = { width: 900, height: 980 };
+export { actionFor, workClock, clockLabel };
 export const POINTS = {
   desk: { x: 280, y: 658, label: "Твой стол" },
   coffee: { x: 610, y: 523, label: "Кофе" },
@@ -16,6 +39,7 @@ export const OBSTACLES = [
   { x: 813, y: 859, w: 36, h: 45, type: "can" },
   { x: 780, y: 348, w: 41, h: 40, type: "chair" },
   { x: 740, y: 645, w: 43, h: 42, type: "chair" },
+  { x: 80, y: 692, w: 26, h: 34, type: "basket" },
 ];
 const gates = [
   { x: 435, y: 212, label: "Первый поворот" },
@@ -177,7 +201,66 @@ export const MISSIONS = [
     ],
     limit: 55,
   },
+  {
+    id: 12,
+    title: "Успеть до звонка",
+    caption: "Кресло против часов",
+    icon: "chair",
+    text: "Три круга и парковка до звонка. На всё — 90 секунд. Если опоздать, кресло опрокинется, а Даша окажется на полу.",
+    kind: "route",
+    destination: "mat",
+    timeLimit: 90,
+    limit: 36,
+    gates: [
+      { x: 435, y: 270 },
+      { x: 540, y: 530 },
+      { x: 550, y: 745 },
+    ],
+  },
+  {
+    id: 13,
+    title: "На своих двоих",
+    caption: "Звонок, кресло и прогулка",
+    icon: "phone",
+    text: "Двигайся джойстиком. Подойди к телефону и нажми «Позвонить». Затем сядь в кресло, прокатись до коврика и встань. В кресле работают привычные две ноги.",
+    kind: "workday",
+    tasks: WALK_TASKS,
+    timeLimit: 180,
+    limit: 20,
+  },
+  {
+    id: 14,
+    title: "На перекур",
+    caption: "Выйти к Держпрому",
+    icon: "leaf",
+    text: "Позвони, прокатись, встань и выйди через дверь. Сделай перерыв с видом на Держпром и вернись к работе. Если зайдёт посетитель, подойди и ответь ему.",
+    kind: "workday",
+    tasks: BREAK_TASKS,
+    timeLimit: 300,
+    limit: 30,
+  },
+  {
+    id: 15,
+    title: "С девяти до пяти",
+    caption: "Один длинный рабочий день",
+    icon: "clock",
+    text: "Полная смена: звонки, документы, кресло и перекуры. Посетители мешают работать, полиция смотрит в окна. Ответь на вопросы и закончи все дела к 17:00. Восемь офисных часов проходят за 12 минут. Пауза и сохранение доступны в любой момент.",
+    kind: "shift",
+    tasks: SHIFT_TASKS,
+    limit: 60,
+  },
 ];
+export function stageCount(mission) {
+  return mission.tasks
+    ? mission.tasks.length
+    : mission.kind === "errands"
+      ? mission.stops.length
+      : mission.kind === "route"
+        ? mission.gates.length + 1
+        : mission.kind === "delivery"
+          ? 2
+          : 1;
+}
 export function layoutFor(id) {
   const obstacles = OBSTACLES.map((o) => ({ ...o })),
     points = structuredClone(POINTS);
@@ -228,6 +311,27 @@ export function layoutFor(id) {
 export function objective(g) {
   if (g.free) return "";
   const m = MISSIONS[g.missionId];
+  if (m.tasks) {
+    if (g.work.reply) return "Отвечаем посетителю…";
+    if (
+      g.work.visitors.some(
+        (v) =>
+          !v.leaving &&
+          g.area === "office" &&
+          Math.hypot(g.x - v.x, g.y - v.y) < 155,
+      )
+    )
+      return "Посетитель отвлекает · ответь ему";
+    const task = currentTask(g, m);
+    if (!task) return "Дела сделаны · дождись 17:00";
+    if (!taskReady(g, task))
+      return `До ${clockLabel(task.from)} — свободное время`;
+    if ((task.area || "office") !== g.area)
+      return g.area === "street" ? "Вернись в офис" : "Выйди к офису";
+    if (task.action === "ride" && g.mode === "walk")
+      return "Сядь в кресло, чтобы продолжить поездку";
+    return task.goal;
+  }
   if (m.kind === "errands") return m.stops[g.stage]?.goal || "";
   if (m.kind === "route" && g.stage < m.gates.length)
     return `Круг ${g.stage + 1} / ${m.gates.length}`;
@@ -266,7 +370,20 @@ export function createGame(missionId = 0, free = false, saved = null) {
     trail: [],
     events: [],
     lastFoot: null,
+    mode: MISSIONS[missionId]?.tasks && !free ? "walk" : "chair",
+    area: "office",
+    joystick: { x: 0, y: 0 },
+    parkedChair: { x: 280, y: 658, angle: Math.PI / 2 },
+    interaction: null,
+    work:
+      MISSIONS[missionId]?.tasks && !free ? createWorkState(saved?.work) : null,
+    fall: null,
   };
+  if (g.work) {
+    g.x = 338;
+    g.y = 650;
+    g.angle = Math.PI / 2;
+  }
   if (saved && saved.missionId === missionId && saved.free === free) {
     for (const k of [
       "x",
@@ -281,9 +398,65 @@ export function createGame(missionId = 0, free = false, saved = null) {
       "carrying",
       "coffee",
     ])
-      if (typeof saved[k] === typeof g[k] || k === "carrying") g[k] = saved[k];
-    g.x = Math.max(80, Math.min(850, g.x));
-    g.y = Math.max(180, Math.min(920, g.y));
+      if (
+        (typeof g[k] === "number" && Number.isFinite(saved[k])) ||
+        (k === "carrying" &&
+          [null, "coffee", "pen", "paper", "letter"].includes(saved[k]))
+      )
+        g[k] = saved[k];
+    if (g.work) {
+      g.mode = saved.mode === "chair" ? "chair" : "walk";
+      g.area =
+        saved.area === "street" && g.mode === "walk" ? "street" : "office";
+      if (
+        ["x", "y", "angle"].every((key) =>
+          Number.isFinite(saved.parkedChair?.[key]),
+        )
+      )
+        g.parkedChair = {
+          x: Math.max(86, Math.min(838, saved.parkedChair.x)),
+          y: Math.max(111, Math.min(911, saved.parkedChair.y)),
+          angle: saved.parkedChair.angle,
+        };
+      if (
+        saved.interaction?.stage === g.stage &&
+        Number.isFinite(saved.interaction.elapsed)
+      ) {
+        const optionalBreak =
+          saved.interaction.task === false &&
+          saved.interaction.type === "smoke" &&
+          g.area === "street";
+        const task = MISSIONS[missionId].tasks[g.stage];
+        const duration = optionalBreak
+          ? 8
+          : saved.interaction.type === task?.action
+            ? task.duration
+            : 0;
+        if (duration)
+          g.interaction = {
+            type: saved.interaction.type,
+            stage: g.stage,
+            area: g.area,
+            duration,
+            task: !optionalBreak,
+            elapsed: Math.max(0, Math.min(duration, saved.interaction.elapsed)),
+          };
+      }
+    }
+    const bounds = g.area === "street" ? STREET.bounds : OFFICE_BOUNDS;
+    g.x = Math.max(
+      bounds.left + CHAIR_RADIUS,
+      Math.min(bounds.right - CHAIR_RADIUS, g.x),
+    );
+    g.y = Math.max(
+      bounds.top + CHAIR_RADIUS,
+      Math.min(bounds.bottom - CHAIR_RADIUS, g.y),
+    );
+    g.time = Math.max(0, g.time);
+    g.stage = Math.max(
+      0,
+      Math.min(stageCount(MISSIONS[missionId]), Math.floor(g.stage)),
+    );
   }
   return g;
 }
@@ -291,7 +464,12 @@ export function speed(g) {
   return Math.hypot(g.vx, g.vy);
 }
 export function inputFoot(g, foot, down) {
-  if (g.phase !== "playing" || !["left", "right"].includes(foot)) return;
+  if (
+    g.phase !== "playing" ||
+    g.mode !== "chair" ||
+    !["left", "right"].includes(foot)
+  )
+    return;
   if (g.feet[foot] === down) return;
   g.feet[foot] = down;
   g.held = 0;
@@ -309,6 +487,24 @@ export function releaseAll(g) {
   g.combo = null;
   g.held = 0;
   g.repeat = 0;
+  g.joystick = { x: 0, y: 0 };
+}
+export function inputJoystick(g, x, y) {
+  if (
+    g.phase !== "playing" ||
+    g.mode !== "walk" ||
+    !Number.isFinite(x) ||
+    !Number.isFinite(y)
+  )
+    return;
+  const length = Math.max(1, Math.hypot(x, y));
+  g.joystick = { x: x / length, y: y / length };
+}
+export function interact(g) {
+  if (g.work) {
+    workInteract(g, MISSIONS[g.missionId]);
+    releaseAll(g);
+  }
 }
 function push(g, left, right) {
   const both = left && right;
@@ -329,6 +525,18 @@ function push(g, left, right) {
 export function target(g) {
   if (g.free) return null;
   const m = MISSIONS[g.missionId];
+  if (m.tasks) {
+    const task = currentTask(g, m);
+    if (!taskReady(g, task)) return null;
+    if ((task.area || "office") !== g.area)
+      return {
+        ...(g.area === "street" ? STREET.points.entrance : WORK_POINTS.exit),
+        radius: 53,
+      };
+    if (task.action === "ride" && g.mode === "walk")
+      return { ...g.parkedChair, radius: 53 };
+    return taskTarget(g, task);
+  }
   if (m.kind === "route" && g.stage < m.gates.length)
     return { ...m.gates[g.stage], radius: 45, rolling: true };
   if (m.kind === "errands") {
@@ -348,10 +556,14 @@ export function target(g) {
 }
 export function stars(g) {
   const m = MISSIONS[g.missionId];
+  if (m.kind === "shift")
+    return (
+      1 + (g.work.stress < 50 ? 1 : 0) + (g.work.answered.length >= 4 ? 1 : 0)
+    );
   return 1 + (g.hits === 0 ? 1 : 0) + (g.pushes <= m.limit ? 1 : 0);
 }
 export function snapshot(g) {
-  return Object.fromEntries(
+  const result = Object.fromEntries(
     [
       "missionId",
       "free",
@@ -368,6 +580,33 @@ export function snapshot(g) {
       "coffee",
     ].map((k) => [k, g[k]]),
   );
+  if (g.work)
+    Object.assign(result, {
+      mode: g.mode,
+      area: g.area,
+      parkedChair: { ...g.parkedChair },
+      work: {
+        stress: g.work.stress,
+        answered: [...g.work.answered],
+        visitors: structuredClone(g.work.visitors),
+        police: g.work.police,
+        policeSince: g.work.policeSince,
+      },
+      interaction: g.interaction ? { ...g.interaction } : null,
+    });
+  return result;
+}
+function finish(g) {
+  g.phase = "won";
+  releaseAll(g);
+  g.events.push({ type: "win", stars: stars(g) });
+}
+function lose(g, reason) {
+  g.fall = { age: 0, reason };
+  g.phase = g.mode === "chair" ? "falling" : "lost";
+  g.vx = g.vy = 0;
+  releaseAll(g);
+  g.events.push({ type: g.phase === "falling" ? "fall" : "lose", reason });
 }
 function collision(g, nx, ny, penetration) {
   const impact = -(g.vx * nx + g.vy * ny);
@@ -387,8 +626,16 @@ function collision(g, nx, ny, penetration) {
   }
 }
 export function step(g, dt) {
-  if (g.phase !== "playing") return;
   dt = Math.min(Math.max(dt, 0), 0.035);
+  if (g.phase === "falling") {
+    g.fall.age += dt;
+    if (g.fall.age >= 1.35) {
+      g.phase = "lost";
+      g.events.push({ type: "lose", reason: g.fall.reason });
+    }
+    return;
+  }
+  if (g.phase !== "playing") return;
   g.time += dt;
   g.bumpCooldown = Math.max(0, g.bumpCooldown - dt);
   for (const f of ["left", "right"]) g.anim[f] = Math.max(0, g.anim[f] - dt);
@@ -416,21 +663,52 @@ export function step(g, dt) {
   }
   const mr = g.layout.mat,
     mat = g.x > mr.x && g.x < mr.x + mr.w && g.y > mr.y && g.y < mr.y + mr.h;
-  const friction = brake ? 11.5 : mat ? 2.5 : 0.9;
-  g.vx *= Math.exp(-friction * dt);
-  g.vy *= Math.exp(-friction * dt);
+  if (g.mode === "walk") {
+    const walking = Math.hypot(g.joystick.x, g.joystick.y) > 0.08;
+    g.vx = walking ? g.joystick.x * 145 : 0;
+    g.vy = walking ? g.joystick.y * 145 : 0;
+    if (walking) g.angle = Math.atan2(g.vy, g.vx);
+  } else {
+    const friction = brake ? 11.5 : mat ? 2.5 : 0.9;
+    g.vx *= Math.exp(-friction * dt);
+    g.vy *= Math.exp(-friction * dt);
+  }
   if (speed(g) < 1.5) {
     g.vx = 0;
     g.vy = 0;
   }
   g.x += g.vx * dt;
   g.y += g.vy * dt;
-  const radius = 21;
-  if (g.x < 65 + radius) collision(g, 1, 0, 65 + radius - g.x);
-  if (g.x > 859 - radius) collision(g, -1, 0, g.x - (859 - radius));
-  if (g.y < 90 + radius) collision(g, 0, 1, 90 + radius - g.y);
-  if (g.y > 932 - radius) collision(g, 0, -1, g.y - (932 - radius));
-  for (const o of g.layout.obstacles) {
+  const radius = g.mode === "walk" ? WALK_RADIUS : CHAIR_RADIUS;
+  const bounds = g.area === "street" ? STREET.bounds : OFFICE_BOUNDS;
+  if (g.x < bounds.left + radius)
+    collision(g, 1, 0, bounds.left + radius - g.x);
+  if (g.x > bounds.right - radius)
+    collision(g, -1, 0, g.x - (bounds.right - radius));
+  if (g.y < bounds.top + radius) collision(g, 0, 1, bounds.top + radius - g.y);
+  if (g.y > bounds.bottom - radius)
+    collision(g, 0, -1, g.y - (bounds.bottom - radius));
+  const solids =
+    g.area === "street"
+      ? STREET.buildings
+      : g.layout.obstacles.flatMap(footprintsFor);
+  if (g.work && g.mode === "walk" && g.area === "office")
+    solids.push({ x: g.parkedChair.x, y: g.parkedChair.y, radius: 19 });
+  for (const o of solids) {
+    if (o.radius !== undefined) {
+      const dx = g.x - o.x,
+        dy = g.y - o.y,
+        distance = Math.hypot(dx, dy),
+        overlap = radius + o.radius - distance;
+      if (overlap > 0)
+        collision(
+          g,
+          distance ? dx / distance : 1,
+          distance ? dy / distance : 0,
+          overlap,
+        );
+      continue;
+    }
     const cx = Math.max(o.x, Math.min(o.x + o.w, g.x)),
       cy = Math.max(o.y, Math.min(o.y + o.h, g.y));
     const dx = g.x - cx,
@@ -454,6 +732,26 @@ export function step(g, dt) {
   )
     g.trail.push({ x: g.x, y: g.y, t: g.time });
   g.trail = g.trail.filter((p) => g.time - p.t < 2.8).slice(-90);
+  const mission = MISSIONS[g.missionId];
+  if (g.work) {
+    const result = stepWorkday(g, mission, dt);
+    if (result?.lost) lose(g, result.lost);
+    else if (result?.won) finish(g);
+  }
+  if (
+    !g.free &&
+    g.phase === "playing" &&
+    mission.timeLimit &&
+    g.time >= mission.timeLimit
+  ) {
+    lose(
+      g,
+      g.mode === "chair"
+        ? "Время вышло. Даша и кресло решили отдохнуть на полу."
+        : "Время вышло. Дела подождут следующей попытки.",
+    );
+  }
+  if (g.work || g.phase !== "playing") return;
   const t = target(g);
   if (t) {
     const close = Math.hypot(g.x - t.x, g.y - t.y) < t.radius;

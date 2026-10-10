@@ -8,8 +8,14 @@ import {
   objective,
   stars,
   snapshot,
+  inputJoystick,
+  interact,
+  actionFor,
+  workClock,
+  clockLabel,
+  stageCount,
 } from "./engine.js";
-import { drawScene, drawWardrobe, drawClothing } from "./render.js";
+import { drawScene, drawWardrobe, drawClothing } from "./render-3.0.1.js";
 import {
   CATALOG,
   DEFAULT_OUTFIT,
@@ -20,6 +26,7 @@ import {
 import { FINAL_NOTE } from "./content.js";
 import { icon } from "./icons.js";
 import { lockTouchViewport } from "./touch-guard.js";
+import { nearbyVisitor } from "./workday.js";
 const $ = (id) => document.getElementById(id);
 const basePath = new URL("./", document.baseURI).pathname;
 const SAVE_KEY =
@@ -27,7 +34,7 @@ const SAVE_KEY =
 const isIOS = /iPhone|iPod/.test(navigator.userAgent);
 const isPhone = isIOS || /Android/i.test(navigator.userAgent);
 let data = {
-  version: 2,
+  version: 3,
   results: {},
   resume: null,
   sound: true,
@@ -35,7 +42,7 @@ let data = {
 };
 try {
   const old = JSON.parse(localStorage.getItem(SAVE_KEY) || "null");
-  if (old && [1, 2].includes(old.version)) {
+  if (old && [1, 2, 3].includes(old.version)) {
     for (let id = 0; id < MISSIONS.length; id++) {
       const r = old.results?.[id];
       if (
@@ -77,14 +84,7 @@ try {
       ].every((k) => Number.isFinite(r[k])) &&
       Number.isInteger(r.stage) &&
       r.stage >= 0 &&
-      r.stage <
-        (m.kind === "errands"
-          ? m.stops.length
-          : m.kind === "route"
-            ? m.gates.length + 1
-            : m.kind === "delivery"
-              ? 2
-              : 1) &&
+      r.stage < stageCount(m) + Number(m.kind === "shift") &&
       [null, "coffee", "pen", "paper", "letter"].includes(r.carrying)
     )
       data.resume = r;
@@ -180,9 +180,10 @@ function firstUnfinished() {
   return MISSIONS.find((m) => !data.results[m.id])?.id ?? 0;
 }
 function updateMenu() {
-  $("menu-progress").textContent = `${Object.keys(data.results).length} / 12`;
+  $("menu-progress").textContent =
+    `${Object.keys(data.results).length} / ${MISSIONS.length}`;
   $("play-main").innerHTML =
-    `${data.resume ? "Продолжить" : Object.keys(data.results).length === 12 ? "Уровни" : "Поехали"} ${icon("arrow")}`;
+    `${data.resume ? "Продолжить" : Object.keys(data.results).length === MISSIONS.length ? "Уровни" : "Поехали"} ${icon("arrow")}`;
 }
 function showView(next) {
   view = next;
@@ -193,6 +194,9 @@ function showView(next) {
 }
 function clearInputs() {
   pointerFeet.clear();
+  walkingKeys.clear();
+  joystickPointer = null;
+  $("joystick-knob").style.transform = "translate(0px, 0px)";
   if (game) releaseAll(game);
   for (const f of ["left", "right"])
     $("foot-" + f).setAttribute("aria-pressed", "false");
@@ -232,6 +236,101 @@ for (const f of ["left", "right"]) {
   for (const event of ["pointerup", "pointercancel", "lostpointercapture"])
     b.addEventListener(event, up);
 }
+let joystickPointer = null;
+const walkingKeys = new Set();
+const stick = $("joystick");
+function moveStick(e) {
+  const rect = stick.getBoundingClientRect(),
+    radius = rect.width * 0.31;
+  const x = (e.clientX - rect.left - rect.width / 2) / radius;
+  const y = (e.clientY - rect.top - rect.height / 2) / radius;
+  const length = Math.max(1, Math.hypot(x, y));
+  inputJoystick(game, x / length, y / length);
+  $("joystick-knob").style.transform =
+    `translate(${(x / length) * radius}px, ${(y / length) * radius}px)`;
+}
+stick.addEventListener("pointerdown", (e) => {
+  if (
+    game?.phase !== "playing" ||
+    game.mode !== "walk" ||
+    joystickPointer !== null ||
+    (e.pointerType === "mouse" && e.button !== 0)
+  )
+    return;
+  e.preventDefault();
+  joystickPointer = e.pointerId;
+  stick.setPointerCapture(e.pointerId);
+  moveStick(e);
+  unlockAudio();
+});
+stick.addEventListener("pointermove", (e) => {
+  if (e.pointerId === joystickPointer) moveStick(e);
+});
+for (const event of ["pointerup", "pointercancel", "lostpointercapture"])
+  stick.addEventListener(event, (e) => {
+    if (e.pointerId !== joystickPointer) return;
+    joystickPointer = null;
+    if (game) inputJoystick(game, 0, 0);
+    $("joystick-knob").style.transform = "translate(0px, 0px)";
+  });
+$("interact-button").addEventListener("click", () => {
+  if (game?.phase !== "playing") return;
+  interact(game);
+  clearInputs();
+  updateHud();
+  unlockAudio();
+});
+function keyboardInput(e, down) {
+  if (
+    view !== "game" ||
+    game?.phase !== "playing" ||
+    document.querySelector("dialog[open]")
+  )
+    return;
+  const key = e.key.toLowerCase();
+  if (key === "e" || key === " ") {
+    e.preventDefault();
+    if (down && !e.repeat && game.work) $("interact-button").click();
+    return;
+  }
+  if (
+    ![
+      "arrowleft",
+      "arrowright",
+      "arrowup",
+      "arrowdown",
+      "a",
+      "d",
+      "w",
+      "s",
+    ].includes(key)
+  )
+    return;
+  e.preventDefault();
+  if (down) walkingKeys.add(key);
+  else walkingKeys.delete(key);
+  if (game.mode === "walk") {
+    inputJoystick(
+      game,
+      Number(walkingKeys.has("d") || walkingKeys.has("arrowright")) -
+        Number(walkingKeys.has("a") || walkingKeys.has("arrowleft")),
+      Number(walkingKeys.has("s") || walkingKeys.has("arrowdown")) -
+        Number(walkingKeys.has("w") || walkingKeys.has("arrowup")),
+    );
+  } else {
+    const pair = walkingKeys.has("w") || walkingKeys.has("arrowup");
+    for (const [foot, pressed] of [
+      ["left", pair || walkingKeys.has("a") || walkingKeys.has("arrowleft")],
+      ["right", pair || walkingKeys.has("d") || walkingKeys.has("arrowright")],
+    ]) {
+      if (pressed) pointerFeet.set(`keyboard-${foot}`, foot);
+      else pointerFeet.delete(`keyboard-${foot}`);
+    }
+    syncInputs();
+  }
+}
+document.addEventListener("keydown", (e) => keyboardInput(e, true));
+document.addEventListener("keyup", (e) => keyboardInput(e, false));
 for (const event of ["selectstart", "contextmenu", "dragstart"])
   document.addEventListener(event, (e) => e.preventDefault());
 function closeDialogs() {
@@ -262,7 +361,7 @@ function closeIntro() {
   showView(introReturnView);
 }
 function prepareMission(id, free = false, restore = false) {
-  if (!isPhone || (!free && !unlocked(id))) return;
+  if (!free && !unlocked(id)) return;
   introReturnView = view === "missions" ? "missions" : "menu";
   clearInputs();
   game = null;
@@ -271,7 +370,7 @@ function prepareMission(id, free = false, restore = false) {
   game.outfit = { ...data.outfit };
   acc = 0;
   showView("game");
-  $("game-number").textContent = free ? "" : `${id + 1} / 12`;
+  $("game-number").textContent = free ? "" : `${id + 1} / ${MISSIONS.length}`;
   $("game-title").textContent = free ? "Покататься" : MISSIONS[id].title;
   updateHud();
   if (restore || free) {
@@ -281,7 +380,9 @@ function prepareMission(id, free = false, restore = false) {
   }
   game.phase = "ready";
   const m = MISSIONS[id];
-  $("intro-number").textContent = `${id + 1} / 12`;
+  $("intro-number").textContent = `${id + 1} / ${MISSIONS.length}`;
+  $("start-mission").innerHTML =
+    `${m.tasks ? "Начать" : "Поехали"} ${icon("arrow")}`;
   $("intro-title").textContent = m.title;
   $("intro-text").textContent = m.text;
   $("first-help").hidden = id !== 0 || !!data.results[0];
@@ -304,11 +405,52 @@ function restart() {
 }
 function updateHud() {
   if (!game) return;
+  const mission = MISSIONS[game.missionId];
   $("objective-text").textContent = objective(game);
+  const seconds =
+    mission.timeLimit && !game.free
+      ? Math.max(0, Math.ceil(mission.timeLimit - game.time))
+      : game.time;
   $("timer").textContent =
-    `${Math.floor(game.time / 60)}:${String(Math.floor(game.time % 60)).padStart(2, "0")}`;
+    mission.kind === "shift" && !game.free
+      ? clockLabel(workClock(game))
+      : `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+  $("timer").classList.toggle(
+    "urgent",
+    !!mission.timeLimit && seconds < 20 && !game.free,
+  );
   $("coffee-level").hidden = game.carrying !== "coffee";
   $("coffee-level").querySelector("b").textContent = `${game.coffee}%`;
+  document.querySelector(".foot-controls").hidden = game.mode === "walk";
+  $("travel-controls").hidden = !game.work;
+  $("walk-controls").hidden = game.mode !== "walk";
+  $("work-status").hidden = !game.work;
+  $("game").dataset.mode = game.mode;
+  const visitor =
+    game.work && game.area === "office"
+      ? nearbyVisitor(game) ||
+        game.work.visitors.find((v) => !v.leaving && v.y > 540)
+      : null;
+  $("visitor-dialogue").hidden = !visitor;
+  if (visitor && $("visitor-phrase").textContent !== visitor.phrase)
+    $("visitor-phrase").textContent = visitor.phrase;
+  if (game.work) {
+    const action = actionFor(game, mission),
+      task = mission.tasks[game.stage];
+    $("interact-button").disabled = !action || !!action.busy;
+    $("interact-button").textContent = action?.label || "Действие";
+    $("action-hint").textContent = game.interaction
+      ? `${Math.floor((game.interaction.elapsed / game.interaction.duration) * 100)}% · ${game.work.reply || action?.type === "reply" ? "Работа прервана" : "Оставайся рядом"}`
+      : task?.action === "ride"
+        ? "Обе ноги — тормоз"
+        : action
+          ? ""
+          : "Подойди к отмеченному кругу";
+    $("work-location").textContent = game.area === "street" ? "Улица" : "Офис";
+    $("work-stress").textContent = `Суета ${Math.round(game.work.stress)}%`;
+    $("stress-meter").value = game.work.stress;
+    $("game").classList.add("work-mission");
+  } else $("game").classList.remove("work-mission");
 }
 function renderMissions() {
   $("mission-list").replaceChildren();
@@ -322,16 +464,17 @@ function renderMissions() {
     b.addEventListener("click", () => prepareMission(m.id));
     $("mission-list").append(b);
   }
-  $("levels-page").textContent = `${levelsPage + 1} / 2`;
+  const pages = Math.ceil(MISSIONS.length / 6);
+  $("levels-page").textContent = `${levelsPage + 1} / ${pages}`;
   $("levels-prev").disabled = levelsPage === 0;
-  $("levels-next").disabled = levelsPage === 1;
+  $("levels-next").disabled = levelsPage === pages - 1;
 }
 $("levels-prev").addEventListener("click", () => {
-  levelsPage = 0;
+  levelsPage = Math.max(0, levelsPage - 1);
   renderMissions();
 });
 $("levels-next").addEventListener("click", () => {
-  levelsPage = 1;
+  levelsPage = Math.min(Math.ceil(MISSIONS.length / 6) - 1, levelsPage + 1);
   renderMissions();
 });
 function openWardrobe(origin = "menu") {
@@ -415,7 +558,7 @@ function showWin() {
     .filter(Boolean)
     .join(" · ");
   $("next-mission").innerHTML =
-    `${id === 11 ? "Открыть записку" : "Дальше"} ${icon(id === 11 ? "heart" : "arrow")}`;
+    `${id === MISSIONS.length - 1 ? "Открыть записку" : "Дальше"} ${icon(id === MISSIONS.length - 1 ? "heart" : "arrow")}`;
   showDialog("win-dialog");
   requestAnimationFrame(() =>
     drawWardrobe($("reward-canvas"), {
@@ -446,7 +589,7 @@ function win() {
 function showLetter() {
   if (
     game?.phase !== "won" ||
-    game.missionId !== 11 ||
+    game.missionId !== MISSIONS.length - 1 ||
     !MISSIONS.every((m) => data.results[m.id])
   )
     return;
@@ -456,14 +599,15 @@ function showLetter() {
 }
 $("next-mission").addEventListener("click", () => {
   if (game?.phase !== "won") return;
-  if (game.missionId === 11) showLetter();
+  if (game.missionId === MISSIONS.length - 1) showLetter();
   else prepareMission(game.missionId + 1);
 });
 const actions = {
   play: () => {
     if (data.resume && unlocked(data.resume.missionId))
       prepareMission(data.resume.missionId, data.resume.free, true);
-    else if (Object.keys(data.results).length === 12) showView("missions");
+    else if (Object.keys(data.results).length === MISSIONS.length)
+      showView("missions");
     else prepareMission(firstUnfinished());
   },
   free: () => prepareMission(0, true),
@@ -538,7 +682,8 @@ for (const d of document.querySelectorAll("dialog"))
     e.preventDefault();
     if (d.id === "pause-dialog") actions.resume();
     else if (d.id === "intro-dialog") closeIntro();
-    else if (["win-dialog", "letter-dialog"].includes(d.id)) exitToMenu();
+    else if (["win-dialog", "letter-dialog", "lose-dialog"].includes(d.id))
+      exitToMenu();
     else d.close();
   });
 window.addEventListener("blur", () => {
@@ -555,10 +700,9 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", saveRun);
 function deviceLayout() {
   const landscape = innerWidth > innerHeight;
-  $("device-gate").hidden = isPhone;
-  $("app").hidden = !isPhone || landscape;
+  $("app").hidden = isPhone && landscape;
   $("rotate-gate").hidden = !isPhone || !landscape;
-  if (landscape && game?.phase === "playing") pause();
+  if (isPhone && landscape && game?.phase === "playing") pause();
   if (view === "wardrobe") requestAnimationFrame(() => renderWardrobe());
 }
 window.addEventListener("resize", deviceLayout);
@@ -586,7 +730,7 @@ async function checkOffline() {
         channel.port1.close();
         return;
       }
-      legacyWorker = e.data.version !== "office-chair-v2.0.2";
+      legacyWorker = e.data.version !== "office-chair-v3.0.1";
       cacheReady = !!e.data.ready && !legacyWorker;
       if (legacyWorker && registration?.waiting) {
         $("update-banner").hidden = true;
@@ -598,7 +742,7 @@ async function checkOffline() {
   };
   worker.postMessage({ type: "CACHE_STATUS" }, [channel.port2]);
 }
-if (isPhone && "serviceWorker" in navigator && isSecureContext) {
+if ("serviceWorker" in navigator && isSecureContext) {
   navigator.serviceWorker
     .register("./sw.js", { scope: "./" })
     .then(async (reg) => {
@@ -636,16 +780,16 @@ $("apply-update").addEventListener("click", () => {
 const menuHero = createGame(0, true);
 menuHero.x = 469;
 menuHero.y = 593;
-menuHero.angle = -1.1;
+menuHero.angle = Math.PI / 2 - 0.22;
 function loop(t) {
   const delta = lastFrame ? Math.min((t - lastFrame) / 1000, 0.1) : 0;
   lastFrame = t;
   clock += delta;
   hudClock += delta;
   saveClock += delta;
-  if (isPhone && !$("app").hidden) {
+  if (!$("app").hidden) {
     if (view === "game" && game) {
-      if (game.phase === "playing") {
+      if (["playing", "falling"].includes(game.phase)) {
         acc = Math.min(acc + delta, 0.1);
         while (acc >= 1 / 120) {
           step(game, 1 / 120);
@@ -656,6 +800,22 @@ function loop(t) {
           if (e.type === "bump") tone(78, 0.1);
           if (["pickup", "gate", "stop"].includes(e.type)) tone(523, 0.15);
           if (e.type === "win") win();
+          if (e.type === "mode") clearInputs();
+          if (e.type === "fall") {
+            clearInputs();
+            tone(68, 0.4);
+            data.resume = null;
+            save();
+          }
+          if (e.type === "lose") {
+            clearInputs();
+            data.resume = null;
+            save();
+            $("lose-title").textContent =
+              game.mode === "chair" ? "Кресло победило" : "Смена не задалась";
+            $("lose-text").textContent = e.reason;
+            showDialog("lose-dialog");
+          }
         }
         if (saveClock > 1.5) {
           saveClock = 0;
@@ -666,7 +826,10 @@ function loop(t) {
         hudClock = 0;
         updateHud();
       }
-      drawScene($("game-canvas"), game, clock, { labels: false });
+      drawScene($("game-canvas"), game, clock, {
+        labels: false,
+        reduced: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      });
     }
     if (view === "menu") {
       menuHero.outfit = data.outfit;
@@ -682,9 +845,7 @@ function loop(t) {
 }
 soundButtons();
 updateMenu();
-if (isPhone) {
-  save();
-  requestAnimationFrame(loop);
-  if (new URLSearchParams(location.search).get("mode") === "free")
-    prepareMission(0, true);
-}
+save();
+requestAnimationFrame(loop);
+if (new URLSearchParams(location.search).get("mode") === "free")
+  prepareMission(0, true);

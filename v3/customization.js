@@ -1,5 +1,5 @@
 export const COLORS = [
-  { id: "black", name: "Чёрная", value: "#233e32", level: 0 },
+  { id: "black", name: "Чёрная", value: "#292d2d", level: 0 },
   ...[
     ["rose", "Розовая", "#e6a2b4"],
     ["sand", "Кремовая", "#e9d6b4"],
@@ -13,6 +13,10 @@ export const COLORS = [
     ["denim", "Джинсовая", "#6b9bb4"],
     ["fuchsia", "Фуксия", "#c970a9"],
     ["milk", "Молочная", "#faf0dd"],
+    ["terracotta", "Терракотовая", "#b77b63"],
+    ["olive", "Оливковая", "#89956b"],
+    ["slate", "Серо-голубая", "#7e949b"],
+    ["lavender", "Лавандовая", "#b5adc7"],
   ].map(([id, name, value], i) => ({ id, name, value, level: i + 1 })),
 ];
 export const PRINTS = [
@@ -30,6 +34,10 @@ export const PRINTS = [
     "Горошек",
     "Бант",
     "Леопард",
+    "Искры",
+    "Телефон",
+    "Держпром",
+    "Солнце",
   ].map((name, i) => ({
     id: [
       "heart",
@@ -44,6 +52,10 @@ export const PRINTS = [
       "dots",
       "bow",
       "leopard",
+      "sparkles",
+      "phone",
+      "city",
+      "sun",
     ][i],
     name,
     level: i + 1,
@@ -55,6 +67,7 @@ export const STYLES = [
   { id: "zip", name: "Кардиган", level: 6 },
   { id: "tank", name: "Топ", level: 9 },
   { id: "collar", name: "Рубашка", level: 12 },
+  { id: "sweater", name: "Свитер", level: 15 },
 ];
 export const CATALOG = { color: COLORS, print: PRINTS, style: STYLES };
 export const DEFAULT_OUTFIT = { color: "black", print: "plain", style: "crew" };
