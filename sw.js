@@ -1,17 +1,19 @@
-const VERSION = "office-chair-v2.0.2";
+const VERSION = "office-chair-v3.0.0";
 const CACHE_PREFIX = `office-chair@${self.registration.scope}:`;
 const CACHE = CACHE_PREFIX + VERSION;
 const ASSETS = [
   "./",
   "./index.html",
-  "./v2/style.css",
-  "./v2/app-2.0.2.js",
-  "./v2/engine.js",
-  "./v2/render.js",
-  "./v2/icons.js",
-  "./v2/customization.js",
-  "./v2/content.js",
-  "./v2/touch-guard.js",
+  "./v3/style.css",
+  "./v3/app-3.0.0.js",
+  "./v3/engine.js",
+  "./v3/geometry.js",
+  "./v3/workday.js",
+  "./v3/render.js",
+  "./v3/icons.js",
+  "./v3/customization.js",
+  "./v3/content.js",
+  "./v3/touch-guard.js",
   "./manifest.webmanifest",
   "./assets/icon.svg",
   "./assets/icon-192.png",

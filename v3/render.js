@@ -1,5 +1,7 @@
 import { OBSTACLES, target, POINTS } from "./engine.js";
 import { outfitColor } from "./customization.js";
+import { PROJECTION_Y, footprintsFor } from "./geometry.js";
+import { STREET, nearbyVisitor } from "./workday.js";
 const C = {
   ink: "#244b40",
   floor: "#e9e3d5",
@@ -134,7 +136,13 @@ function stationery(c, x, y) {
 function boxStack(c, x, y, levels = 3) {
   const w = 45,
     h = 28;
-  shadow(c, x, y, w, h);
+  c.save();
+  c.globalAlpha = 0.1;
+  c.fillStyle = "#405b36";
+  c.beginPath();
+  c.ellipse(x + w / 2 + 3, y + 5, w * 0.56, 8, 0, 0, Math.PI * 2);
+  c.fill();
+  c.restore();
   for (let i = 0; i < levels; i++) {
     const yy = y - i * 27;
     rr(c, x, yy - 25, w, h, 3, "#d5dbc194", "#9aa889");
@@ -251,6 +259,16 @@ function drawObject(c, o, time) {
       line(c, x + 111, y + 26, x + 126, y + 26, "#73b0c5", 6);
       for (let j = 0; j < 5; j++)
         line(c, x + 92 + j * 4, y + 17, x + 92 + j * 4, y + 24, "#518fab", 1);
+      rr(c, x + 113, y - 12, 27, 16, 4, "#3e554b");
+      rr(c, x + 111, y - 16, 32, 7, 4, "#2e443b");
+      for (let j = 0; j < 6; j++)
+        circle(
+          c,
+          x + 123 + (j % 3) * 5,
+          y - 6 + Math.floor(j / 3) * 4,
+          1,
+          "#becbbc",
+        );
       break;
     }
     case "water":
@@ -280,80 +298,211 @@ function drawObject(c, o, time) {
     case "chair":
       officeChair(c, x + w / 2, y + h / 2, true);
       break;
+    case "basket":
+      rr(c, x, y, w, h, 7, "#a899ae", "#7d7890");
+      for (let i = 0; i < 4; i++)
+        line(c, x + 6 + i * 5, y + 5, x + 6 + i * 5, y + h - 5, "#d0c3d5", 1.5);
+      break;
   }
 }
-function drawHero(c, g, time, menu = false, reduced = false) {
-  const x = g.x,
-    y = g.y * 0.78;
-  c.save();
-  c.translate(x, y);
-  c.fillStyle = "#405b362c";
-  c.beginPath();
-  c.ellipse(3, 16, 32, 16, 0, 0, Math.PI * 2);
-  c.fill();
-  c.rotate(
-    Math.atan2(Math.sin(g.angle) * 0.78, Math.cos(g.angle)) + Math.PI / 2,
-  );
+// The local +Y axis points toward Dasha's toes; head, hips and feet share one heading.
+function drawPlayerChair(c) {
   for (let i = 0; i < 5; i++) {
     const a = (i * Math.PI * 2) / 5 + 0.2;
-    line(c, 0, 4, Math.cos(a) * 26, 4 + Math.sin(a) * 22, "#43584b", 4);
-    circle(c, Math.cos(a) * 26, 4 + Math.sin(a) * 22, 4, "#233c34");
+    line(c, 0, 9, Math.cos(a) * 27, 9 + Math.sin(a) * 21, "#43584b", 4);
+    circle(c, Math.cos(a) * 27, 9 + Math.sin(a) * 21, 4, "#233c34");
   }
-  rr(c, -24, -8, 48, 33, 10, "#2e493f", "#1f3f33");
-  rr(c, -25, 11, 50, 19, 6, "#4b6051", "#2f4a3b");
+  rr(c, -24, -5, 48, 35, 9, "#2f4540", "#243b34");
+  rr(c, -25, -27, 50, 22, 6, "#43564d", "#293f36");
   for (let i = 0; i < 4; i++)
-    line(c, -20, 14 + i * 4, 20, 14 + i * 4, "#849279", 1.3);
-  for (const [f, side] of [
+    line(c, -20, -23 + i * 5, 20, -23 + i * 5, "#82907d", 1.4);
+  line(c, -29, -8, -29, 14, "#314c3c", 4);
+  line(c, 29, -8, 29, 14, "#314c3c", 4);
+}
+function drawPerson(c, g, time, reduced, fallen = false) {
+  const walking = g.mode === "walk" && Math.hypot(g.vx || 0, g.vy || 0) > 5;
+  for (const [foot, side] of [
     ["left", -1],
     ["right", 1],
   ]) {
-    const planted = g.feet[f] || g.anim[f] > 0;
-    const legLen = planted ? 19 : 33;
-    rr(c, side * 10 - 5, -legLen, 10, legLen + 13, 5, "#263d35");
-    rr(c, side * 10 - 7, -legLen - 9, 14, 16, 5, "#26372f");
+    const push = g.feet?.[foot] || g.anim?.[foot] > 0;
+    const stride =
+      walking && !reduced
+        ? Math.sin(time * 11 + (side > 0 ? Math.PI : 0)) * 7
+        : 0;
+    const length = fallen ? 21 + side * 4 : (push ? 39 : 31) + stride;
+    rr(c, side * 10 - 5, 8, 10, length - 1, 5, "#2d3030");
+    rr(c, side * 10 - 7, length + 5, 14, 18, 5, "#252b2b");
     for (let j = 0; j < 3; j++)
       line(
         c,
         side * 10 - 4,
-        -legLen - 5 + j * 3,
+        length + 10 + j * 3,
         side * 10 + 4,
-        -legLen - 5 + j * 3,
-        "#718274",
-        1,
+        length + 10 + j * 3,
+        "#e6e5dc",
+        1.4,
       );
   }
+  // Hair behind the shoulders, then torso, neck and face.
+  rr(c, -20, -29, 40, 34, 13, "#624435");
   drawShirt(c, g.outfit);
-  line(c, -28, -3, -26, 13, "#314c3c", 5);
-  line(c, 28, -3, 26, 13, "#314c3c", 5);
-  line(c, -18, -11, -25, 0, "#e7b79c", 7);
-  line(c, 18, -11, 25, 0, "#e7b79c", 7);
-  circle(c, -25, 0, 4, "#e8bea3");
-  circle(c, 25, 0, 4, "#e8bea3");
-  circle(c, 0, -27, 18, "#765039");
-  circle(c, -15, -12, 9, "#895d41");
-  circle(c, 15, -12, 9, "#895d41");
-  circle(c, 0, -28, 13, "#efc2a3");
-  c.fillStyle = "#80583f";
-  c.beginPath();
-  c.arc(0, -28, 17, Math.PI, Math.PI * 2);
-  c.bezierCurveTo(18, -22, 15, -17, 10, -16);
-  c.lineTo(8, -34);
-  c.bezierCurveTo(-2, -30, -9, -28, -14, -24);
-  c.closePath();
-  c.fill();
-  circle(c, -5, -28, 1.3, "#4a4633");
-  circle(c, 5, -28, 1.3, "#4a4633");
-  line(c, -3, -22, 3, -22, "#bd7d76", 1.5);
-  line(c, -13, -30, -15, -18, "#aa7754", 1.8);
-  line(c, 13, -30, 15, -17, "#aa7754", 1.8);
-  if (g.carrying === "coffee") mug(c, 25, -18, 0.66);
-  if (g.carrying === "pen") line(c, 21, -27, 30, -13, "#ca7759", 5);
-  if (g.carrying === "paper") paper(c, 13, -30);
+  const sway = walking && !reduced ? Math.sin(time * 11) * 5 : 0;
+  for (const side of [-1, 1]) {
+    line(c, side * 20, -9, side * 25, 9 + side * sway, "#e2ae94", 6);
+    circle(c, side * 25, 9 + side * sway, 4, "#e8bba0");
+  }
+  rr(c, -5, -27, 10, 12, 4, "#e8b89c");
+  circle(c, 0, -33, 19, "#5b3c31");
+  circle(c, 0, -31, 13, "#efc2a3");
+  polygon(
+    c,
+    [
+      [-17, -31],
+      [-13, -46],
+      [4, -50],
+      [17, -39],
+      [15, -18],
+      [9, -27],
+      [7, -40],
+      [-9, -34],
+      [-13, -22],
+    ],
+    "#624335",
+  );
+  line(c, -14, -34, -17, -7, "#825947", 2);
+  line(c, 15, -33, 18, -6, "#825947", 2);
+  line(c, -8, -33, -3, -34, "#76513e", 1.5);
+  line(c, 3, -34, 8, -33, "#76513e", 1.5);
+  circle(c, -5, -30, 1.5, "#474238");
+  circle(c, 5, -30, 1.5, "#474238");
+  line(c, -3, -24, 3, -24, "#b57773", 1.6);
+  if (g.carrying === "coffee") mug(c, 25, 1, 0.66);
+  if (g.carrying === "pen") line(c, 23, -8, 31, 8, "#ca7759", 4);
+  if (g.carrying === "paper") paper(c, 14, -10);
   if (g.carrying === "letter") {
-    rr(c, 12, -29, 28, 20, 3, "#fcf1da", "#a48b70");
-    line(c, 12, -29, 26, -17, "#a48b70", 1);
-    line(c, 40, -29, 26, -17, "#a48b70", 1);
-    circle(c, 26, -17, 3, "#ce9387");
+    rr(c, 12, -9, 28, 20, 3, "#fcf1da", "#a48b70");
+    line(c, 12, -9, 26, 3, "#a48b70", 1);
+    line(c, 40, -9, 26, 3, "#a48b70", 1);
+    circle(c, 26, 3, 3, "#ce9387");
+  }
+  if (g.interaction?.type === "call") {
+    rr(c, 16, -33, 7, 17, 3, "#344f46");
+    line(c, 25, 9, 20, -19, "#e8bba0", 6);
+  }
+  if (g.interaction?.type === "smoke") {
+    line(c, 25, 6, 38, 6, "#f6f2e7", 3);
+    circle(c, 39, 6, 1.6, "#c79b72");
+    if (!reduced) {
+      c.globalAlpha = 0.3;
+      circle(c, 42, -3 - Math.sin(time * 2) * 3, 4, "#9faba0");
+      c.globalAlpha = 1;
+    }
+  }
+}
+function drawHero(c, g, time, menu = false, reduced = false) {
+  c.save();
+  c.translate(g.x, g.y * PROJECTION_Y);
+  c.fillStyle = "#405b3620";
+  c.beginPath();
+  c.ellipse(3, 19, 29, 13, 0, 0, Math.PI * 2);
+  c.fill();
+  c.rotate(
+    Math.atan2(Math.sin(g.angle) * PROJECTION_Y, Math.cos(g.angle)) -
+      Math.PI / 2,
+  );
+  if (g.fall && ["falling", "lost"].includes(g.phase)) {
+    const p = reduced ? 1 : Math.min(1, g.fall.age / 0.9);
+    const ease = 1 - (1 - p) ** 3;
+    c.save();
+    c.translate(-ease * 16, -ease * 7);
+    c.rotate(-ease * 1.1);
+    c.scale(1, 1 - ease * 0.4);
+    drawPlayerChair(c);
+    c.restore();
+    c.translate(ease * 47, ease * 14);
+    c.rotate(ease * 1.45);
+    drawPerson(c, g, time, reduced, true);
+  } else {
+    if (g.mode !== "walk") drawPlayerChair(c);
+    drawPerson(c, g, time, reduced);
+  }
+  c.restore();
+}
+function drawVisitor(c, visitor, time, police = false) {
+  c.save();
+  c.translate(visitor.x, visitor.y * PROJECTION_Y);
+  c.fillStyle = "#405b3620";
+  c.beginPath();
+  c.ellipse(0, 16, 20, 9, 0, 0, Math.PI * 2);
+  c.fill();
+  rr(c, -12, 7, 9, 22, 4, "#4b5150");
+  rr(c, 3, 7, 9, 22, 4, "#4b5150");
+  rr(c, -16, -16, 32, 32, 9, police ? "#4b6375" : visitor.color);
+  line(c, -18, -7, -20, 14, "#c9a48c", 5);
+  line(c, 18, -7, 20, 14, "#c9a48c", 5);
+  circle(c, 0, -27, 12, "#ddb497");
+  rr(c, -13, -40, 26, 10, 5, police ? "#3c5368" : "#625449");
+  circle(c, -4, -26, 1, "#48453d");
+  circle(c, 4, -26, 1, "#48453d");
+  if (police) {
+    rr(c, -17, -31, 34, 4, 2, "#3c5368");
+    circle(c, 7, -9, 3, "#c6b77e");
+  }
+  c.restore();
+}
+function drawBubble(c, visitor) {
+  const lines = visitor.phrase.includes("рассказывайте")
+    ? ["Ну рассказывайте,", "чем вы тут занимаетесь"]
+    : visitor.phrase.includes("только")
+      ? ["Я только спросить.", "А что у вас тут такое?"]
+      : ["А что у вас тут такое?"];
+  const x = Math.max(180, Math.min(725, visitor.x)),
+    y = visitor.y * PROJECTION_Y - 79;
+  rr(
+    c,
+    x - 143,
+    y - (lines.length - 1) * 16,
+    286,
+    33 + (lines.length - 1) * 16,
+    10,
+    "#fffdf5",
+    "#d1d9c8",
+  );
+  polygon(
+    c,
+    [
+      [x - 6, y + 32],
+      [x + 6, y + 32],
+      [x, y + 41],
+    ],
+    "#fffdf5",
+  );
+  lines.forEach((label, i) =>
+    text(
+      c,
+      label,
+      x,
+      y + 21 - (lines.length - 1 - i) * 16,
+      13,
+      C.ink,
+      "center",
+    ),
+  );
+}
+function drawPoliceCar(c, x, y, time, scale = 1) {
+  c.save();
+  c.translate(x, y);
+  c.scale(scale, scale);
+  shadow(c, -42, -19, 84, 39);
+  rr(c, -42, -19, 84, 39, 12, "#f8f8ef", "#80928e");
+  rr(c, -24, -14, 30, 29, 7, "#88a8aa");
+  rr(c, -7, -19, 21, 39, 2, "#557589");
+  rr(c, -5, -8, 16, 5, 2, Math.sin(time * 6) > 0 ? "#92bad1" : "#bd8080");
+  text(c, "ПОЛІЦІЯ", 18, 5, 7, "#537287", "center");
+  for (const xx of [-28, 27]) {
+    rr(c, xx, -23, 14, 6, 2, "#394b48");
+    rr(c, xx, 17, 14, 6, 2, "#394b48");
   }
   c.restore();
 }
@@ -387,11 +536,201 @@ function drawMat(c, mat = { x: 644, y: 788 }) {
   line(c, x + 61, y + 17, x + 61, y + 26, "#795a3b", 2);
   text(c, "winter time", x + 76, y + 58, 12, "#584934", "center");
 }
+function drawTree(c, x, y, size = 28) {
+  y *= PROJECTION_Y;
+  c.save();
+  c.globalAlpha = 0.12;
+  circle(c, x + 8, y + 6, size, "#46634b");
+  c.restore();
+  line(c, x, y, x, y - 15, "#98806a", 5);
+  circle(c, x - size * 0.3, y - 25, size * 0.75, "#a4b48a");
+  circle(c, x + size * 0.35, y - 22, size * 0.75, "#8fa777");
+  circle(c, x, y - 38, size * 0.75, "#b3be96");
+}
+function drawBuilding(c, building) {
+  const { x, w, type } = building,
+    y = building.y * PROJECTION_Y,
+    h = building.h * PROJECTION_Y;
+  const rise = type === "landmark" ? 42 : 29;
+  shadow(c, x, y, w, h);
+  rr(c, x, y, w, h, 3, type === "landmark" ? "#b5b5a7" : "#d5c6b3", "#a8ad9e");
+  rr(
+    c,
+    x,
+    y - rise,
+    w,
+    h,
+    3,
+    type === "landmark" ? "#e0dfd1" : "#e9d8c1",
+    "#babaa9",
+  );
+  for (let row = 0; row < 2; row++)
+    for (let column = 0; column < Math.floor(w / 30); column++)
+      rr(
+        c,
+        x + 12 + column * 30,
+        y + h - rise + 7 + row * 17,
+        14,
+        11,
+        1,
+        "#839b99",
+      );
+  if (type === "landmark") {
+    // Three monumental masses, light courtyards and elevated connecting bridges.
+    rr(c, x + 35, y + 45 - rise, w - 70, h - 95, 1, "#a5b2a0", "#c4c7b7");
+    rr(c, x + 15, y + 14 - rise, w - 30, 39, 1, "#ededdf", "#c0c2b1");
+    rr(c, x + 18, y + h - 60 - rise, w - 36, 40, 1, "#e9e9db", "#c0c2b1");
+    const towerWidth = w > 300 ? 87 : 58;
+    rr(
+      c,
+      x + w / 2 - towerWidth / 2,
+      y - 73,
+      towerWidth,
+      128,
+      2,
+      "#f0f0e4",
+      "#b7bba9",
+    );
+    for (let row = 0; row < 5; row++)
+      line(
+        c,
+        x + w / 2 - towerWidth / 2 + 8,
+        y - 64 + row * 23,
+        x + w / 2 + towerWidth / 2 - 8,
+        y - 64 + row * 23,
+        "#9aa8a2",
+        4,
+      );
+    for (let side = 0; side < 2; side++)
+      for (let row = 0; row < 8; row++)
+        rr(
+          c,
+          x + (side ? w - 27 : 12),
+          y + 57 + row * 20 - rise,
+          13,
+          10,
+          1,
+          "#9da9a1",
+        );
+  } else if (type === "office") {
+    rr(c, x + 22, y + 12 - rise, w - 44, h - 45, 2, "#d7c7b2", "#baa98f");
+    rr(c, x + 40, y + 37 - rise, w - 80, h - 96, 2, "#a6b391");
+    for (let j = 0; j < 7; j++)
+      rr(c, x - 1, y + 19 + j * 24, 9, 14, 1, "#819f9b");
+    rr(
+      c,
+      x - 6,
+      STREET.points.entrance.y * PROJECTION_Y - 18,
+      13,
+      36,
+      2,
+      "#8b735a",
+    );
+    rr(c, x + 27, y + h - 51, w - 54, 26, 7, "#fff9eb");
+    text(
+      c,
+      "ОФИС · ЮРЫ ЗОЙФЕРА, 3",
+      x + w / 2,
+      y + h - 33,
+      17,
+      C.ink,
+      "center",
+    );
+  } else rr(c, x + 30, y + 30 - rise, w - 60, h - 85, 2, "#b4bca6");
+}
+function drawStreet(c, g, time, w, h, reduced, debug) {
+  const scale = Math.min(w / 1360, h / 1130);
+  c.translate(
+    (w - STREET.width * scale) / 2,
+    (h - STREET.height * PROJECTION_Y * scale) / 2 + 24 * scale,
+  );
+  c.scale(scale, scale);
+  rr(c, 25, -15, 1250, 990, 18, "#e6e5d8");
+  rr(c, 65, 417, 1170, 108, 45, "#c3cbae");
+  rr(c, 70, 628, 1160, 82, 30, "#b8c6a1");
+  c.save();
+  c.strokeStyle = "#bcc1b8";
+  c.lineWidth = 103;
+  c.beginPath();
+  c.moveTo(45, 501);
+  c.quadraticCurveTo(660, 642, 1255, 501);
+  c.stroke();
+  c.strokeStyle = "#edeede";
+  c.lineWidth = 2;
+  c.setLineDash([22, 18]);
+  c.stroke();
+  c.restore();
+  rr(c, 607, 688, 65, 255, 2, "#c1c5bb");
+  rr(c, 447, 663, 134, 280, 2, "#f0ecde");
+  rr(c, 694, 681, 31, 249, 0, "#f0ecde");
+  for (let i = 0; i < 7; i++) rr(c, 603 + i * 11, 590, 7, 67, 0, "#f5f2e7");
+  for (let i = 0; i < 10; i++) {
+    drawTree(c, 100 + i * 119, 618, 27);
+    drawTree(c, 108 + i * 116, 860, 24);
+  }
+  for (const building of STREET.buildings) drawBuilding(c, building);
+  for (const x of [370, 825])
+    for (const y of [190, 315]) {
+      rr(c, x, y, 105, 34, 1, "#e5e6d9", "#b5baaa");
+      for (let j = 0; j < 4; j++)
+        rr(c, x + 12 + j * 23, y + 23, 13, 8, 1, "#8ea1a0");
+    }
+  rr(c, 504, 388, 292, 43, 12, "#faf8eccc");
+  text(c, "ДЕРЖПРОМ", 650, 417, 30, C.ink, "center");
+  text(c, "ПРОСПЕКТ НЕЗАВИСИМОСТИ", 950, 592, 17, "#707e73", "center");
+  c.save();
+  c.translate(635, 827);
+  c.rotate(-Math.PI / 2);
+  text(c, "ЮРЫ ЗОЙФЕРА", 0, 0, 13, "#7b877a", "center");
+  c.restore();
+  rr(c, 478, 671, 72, 15, 3, "#b18d6d");
+  line(c, 485, 679, 485, 694, "#789078", 4);
+  line(c, 544, 679, 544, 694, "#789078", 4);
+  rr(c, 576, 714, 17, 21, 3, "#899c7a");
+  text(c, "ПЕРЕКУР", 524, 683, 12, "#6e826a", "center");
+  if (g.work.police) {
+    const arrival = reduced
+      ? 1
+      : Math.min(1, (g.time - g.work.policeSince) / 3);
+    drawPoliceCar(c, -80 + arrival * 750, 856, reduced ? 0 : time, 1.15);
+    if (arrival >= 1) {
+      drawVisitor(c, { x: 697, y: 930 }, time, true);
+      drawVisitor(c, { x: 697, y: 976 }, time, true);
+    }
+  }
+  const t = target(g);
+  if (t) {
+    c.save();
+    c.translate(t.x, t.y * PROJECTION_Y);
+    c.scale(1, PROJECTION_Y);
+    circle(c, 0, 0, t.radius, "#9eb78725", "#438d72");
+    circle(c, 0, 0, 5, "#589d7f");
+    c.restore();
+  }
+  drawHero(c, g, time, false, reduced);
+  if (debug) {
+    c.save();
+    c.globalAlpha = 0.3;
+    for (const solid of STREET.buildings)
+      rr(
+        c,
+        solid.x,
+        solid.y * PROJECTION_Y,
+        solid.w,
+        solid.h * PROJECTION_Y,
+        0,
+        "#c96750",
+      );
+    c.restore();
+  }
+  rr(c, 38, 891, 332, 34, 9, "#faf8eccc");
+  text(c, "ХАРЬКОВ · ВОЗЛЕ ОФИСА", 204, 914, 14, "#738471", "center");
+}
 export function drawScene(
   canvas,
   g,
   time = 0,
-  { menu = false, reduced = false, labels = false } = {},
+  { menu = false, reduced = false, labels = false, debug = false } = {},
 ) {
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
@@ -408,12 +747,24 @@ export function drawScene(
   const c = canvas.getContext("2d");
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
   c.clearRect(0, 0, w, h);
-  const s = Math.min(w / 930, h / 850),
+  if (g?.area === "street") {
+    drawStreet(c, g, time, w, h, reduced, debug);
+    return;
+  }
+  const s = Math.min(w / 960, h / 850),
     ox = (w - 900 * s) / 2,
     oy = (h - 750 * s) / 2 + 35 * s;
   c.translate(ox, oy);
   c.scale(s, s);
-  // The office is drawn as a cutaway dollhouse: warm tiles, tall blinds, familiar objects.
+  if (g?.work?.police) {
+    c.save();
+    c.translate(6, 475);
+    c.rotate(-Math.PI / 2);
+    drawPoliceCar(c, 0, 0, reduced ? 0 : time, 0.6);
+    c.restore();
+    drawVisitor(c, { x: 15, y: 395 }, time, true);
+    drawVisitor(c, { x: 15, y: 495 }, time, true);
+  }
   shadow(c, 57, 62, 812, 684);
   rr(c, 57, 61, 814, 684, 12, "#d1cbbc");
   rr(c, 65, 70, 794, 658, 5, C.floor);
@@ -538,7 +889,7 @@ export function drawScene(
           0,
           t.radius,
           -Math.PI / 2,
-          -Math.PI / 2 + (Math.PI * 2 * g.dwell) / 0.65,
+          -Math.PI / 2 + (Math.PI * 2 * g.dwell) / (g.work ? 0.8 : 0.65),
         );
         c.stroke();
       }
@@ -547,19 +898,65 @@ export function drawScene(
     }
   }
   const things = (g?.layout?.obstacles || OBSTACLES).map((o) => ({
-    y: o.y + o.h,
+    y: Math.max(...footprintsFor(o).map((p) => p.y + (p.h || p.radius))),
     draw: () => drawObject(c, o, time),
   }));
+  if (g?.work) {
+    for (const visitor of g.work.visitors)
+      things.push({
+        y: visitor.y + 14,
+        draw: () => drawVisitor(c, visitor, time),
+      });
+    if (g.mode === "walk")
+      things.push({
+        y: g.parkedChair.y + 14,
+        draw: () => {
+          c.save();
+          c.translate(g.parkedChair.x, g.parkedChair.y * PROJECTION_Y);
+          c.rotate(
+            Math.atan2(
+              Math.sin(g.parkedChair.angle) * PROJECTION_Y,
+              Math.cos(g.parkedChair.angle),
+            ) -
+              Math.PI / 2,
+          );
+          drawPlayerChair(c);
+          c.restore();
+        },
+      });
+  }
   if (g)
     things.push({
       y: g.y + 14,
       draw: () => drawHero(c, g, time, menu, reduced),
     });
   things.sort((a, b) => a.y - b.y).forEach((t) => t.draw());
-  // Small details: purple basket, wall socket and green shrub outside the window.
-  rr(c, 80, 540, 26, 26, 7, "#a899ae", "#7d7890");
-  for (let i = 0; i < 4; i++)
-    line(c, 86 + i * 5, 545, 86 + i * 5, 561, "#d0c3d5", 1.5);
+  if (g?.work) {
+    const visitor =
+      nearbyVisitor(g) || g.work.visitors.find((v) => !v.leaving && v.y > 540);
+    if (visitor) drawBubble(c, visitor);
+  }
+  if (debug) {
+    c.save();
+    c.globalAlpha = 0.3;
+    for (const object of g.layout.obstacles)
+      for (const solid of footprintsFor(object)) {
+        if (solid.radius)
+          circle(c, solid.x, solid.y * PROJECTION_Y, solid.radius, "#c96750");
+        else
+          rr(
+            c,
+            solid.x,
+            solid.y * PROJECTION_Y,
+            solid.w,
+            solid.h * PROJECTION_Y,
+            0,
+            "#c96750",
+          );
+      }
+    c.restore();
+  }
+  // Wall socket above the door.
   rr(c, 474, 4, 41, 12, 2, "#8b9c89");
   circle(c, 483, 10, 2, "#eff0e4");
   circle(c, 498, 10, 2, "#eff0e4");
@@ -630,6 +1027,10 @@ function drawShirt(c, outfit = {}) {
     line(c, 0, -17, 0, 14, "#f7efdf", 2);
     for (let y = -6; y < 13; y += 6) circle(c, 3, y, 1, "#f7efdf");
   }
+  if (style === "sweater") {
+    for (let y = -10; y < 13; y += 5) line(c, -17, y, 17, y, "#ffffff22", 1);
+    line(c, -18, 13, 18, 13, "#ffffff50", 2);
+  }
   if (style === "collar") {
     polygon(
       c,
@@ -678,6 +1079,40 @@ function drawPrint(c, id = "plain", ink = "#fff4df") {
     c.fill();
   }
   if (id === "star") star(0, -1, 10);
+  if (id === "sparkles") {
+    star(-7, -4, 6);
+    star(8, 4, 4);
+    star(9, -10, 3);
+  }
+  if (id === "phone") {
+    c.beginPath();
+    c.moveTo(-8, -9);
+    c.bezierCurveTo(-12, 2, 0, 12, 10, 6);
+    c.stroke();
+    rr(c, -10, -11, 7, 8, 2, ink);
+    rr(c, 5, 3, 7, 8, 2, ink);
+  }
+  if (id === "city") {
+    for (let i = 0; i < 3; i++)
+      rr(c, -13 + i * 10, -10 + (i === 1 ? -3 : 0), 8, 22, 1, ink);
+    line(c, -8, -5, 8, -5, ink, 2);
+    line(c, -8, 2, 8, 2, ink, 2);
+  }
+  if (id === "sun") {
+    circle(c, 0, -1, 6, ink);
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      line(
+        c,
+        Math.cos(a) * 9,
+        -1 + Math.sin(a) * 9,
+        Math.cos(a) * 13,
+        -1 + Math.sin(a) * 13,
+        ink,
+        2,
+      );
+    }
+  }
   if (id === "flower") {
     for (let i = 0; i < 6; i++) {
       const a = (i * Math.PI) / 3;
@@ -799,7 +1234,7 @@ export function drawWardrobe(canvas, outfit, mini = false) {
   c.scale(s, s);
   drawHero(
     c,
-    { x: 0, y: 0, angle: -Math.PI / 2, feet: {}, anim: {}, outfit },
+    { x: 0, y: 0, angle: Math.PI / 2, feet: {}, anim: {}, outfit },
     0,
   );
 }

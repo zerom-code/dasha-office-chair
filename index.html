@@ -9,7 +9,7 @@
     <meta name="theme-color" content="#f7f4eb" />
     <meta
       name="description"
-      content="Даша на кресле. 12 уровней, две ноги и один офис."
+      content="16 уровней: кресло, прогулки у Держпрома и рабочий день Даши с девяти до пяти."
     />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -17,15 +17,10 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
-    <link rel="stylesheet" href="./v2/style.css" />
+    <link rel="stylesheet" href="./v3/style.css" />
     <title>Даша на колёсиках</title>
   </head>
   <body>
-    <div id="device-gate" class="gate" hidden>
-      <span data-icon="chair"></span>
-      <h1>Даша на колёсиках</h1>
-      <p>Открой на телефоне</p>
-    </div>
     <div id="rotate-gate" class="gate" hidden>
       <span class="phone-symbol">↻</span>
       <p>Поверни телефон</p>
@@ -60,7 +55,7 @@
           <button data-action="missions">
             <span data-icon="levels"></span
             ><span
-              >Уровни <small id="menu-progress">0 / 12</small></span
+              >Уровни <small id="menu-progress">0 / 16</small></span
             ></button
           ><button data-action="wardrobe">
             <span data-icon="shirt"></span><span>Одежда</span></button
@@ -169,6 +164,37 @@
             role="img"
           ></canvas>
           <div id="coffee-level" hidden>☕ <b>100%</b></div>
+          <div id="visitor-dialogue" role="status" hidden>
+            <small>Посетитель</small>
+            <p id="visitor-phrase"></p>
+          </div>
+          <div id="work-status" hidden>
+            <span id="work-location">Офис</span>
+            <span class="stress"
+              ><small id="work-stress">Суета 0%</small
+              ><meter
+                id="stress-meter"
+                min="0"
+                max="100"
+                value="0"
+                aria-label="Суета"
+              ></meter
+            ></span>
+          </div>
+        </div>
+        <div id="travel-controls" hidden>
+          <div id="walk-controls">
+            <div id="joystick" role="group" aria-label="Джойстик для ходьбы">
+              <span class="stick-directions" aria-hidden="true">✣</span>
+              <span id="joystick-knob"></span>
+            </div>
+          </div>
+          <div class="action-controls">
+            <small id="action-hint"></small>
+            <button id="interact-button" class="button primary" disabled>
+              Действие
+            </button>
+          </div>
         </div>
         <div class="foot-controls">
           <button
@@ -247,6 +273,15 @@
         В меню <span data-icon="heart"></span>
       </button>
     </dialog>
+    <dialog id="lose-dialog">
+      <span class="muted">Ещё одна попытка</span>
+      <h2 id="lose-title">Кресло победило</h2>
+      <p id="lose-text"></p>
+      <button class="button primary" data-action="retry">
+        Заново <span data-icon="reset"></span>
+      </button>
+      <button class="text-button" data-action="exit">В меню</button>
+    </dialog>
     <dialog id="install-dialog">
       <button
         class="dialog-close icon-button"
@@ -269,6 +304,6 @@
       ><button id="apply-update" class="text-button">Обновить</button>
     </div>
     <noscript>Для игры нужен JavaScript.</noscript>
-    <script type="module" src="./v2/app-2.0.2.js"></script>
+    <script type="module" src="./v3/app-3.0.0.js"></script>
   </body>
 </html>
