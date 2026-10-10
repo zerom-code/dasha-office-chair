@@ -626,16 +626,8 @@ function drawBuilding(c, building) {
       2,
       "#8b735a",
     );
-    rr(c, x + 27, y + h - 51, w - 54, 26, 7, "#fff9eb");
-    text(
-      c,
-      "ОФИС · ЮРЫ ЗОЙФЕРА, 3",
-      x + w / 2,
-      y + h - 33,
-      17,
-      C.ink,
-      "center",
-    );
+    rr(c, x + w / 2 - 64, y + h - 55, 128, 32, 7, "#fff9eb");
+    text(c, "ОФИС", x + w / 2, y + h - 33, 23, C.ink, "center");
   } else rr(c, x + 30, y + 30 - rise, w - 60, h - 85, 2, "#b4bca6");
 }
 function drawStreet(c, g, time, w, h, reduced, debug) {
@@ -648,6 +640,12 @@ function drawStreet(c, g, time, w, h, reduced, debug) {
   rr(c, 25, -15, 1250, 990, 18, "#e6e5d8");
   rr(c, 65, 417, 1170, 108, 45, "#c3cbae");
   rr(c, 70, 628, 1160, 82, 30, "#b8c6a1");
+  // Pavements connect the landmark forecourt, the break area and the office.
+  rr(c, 497, 404, 82, 276, 0, "#f0ecde");
+  rr(c, 447, 638, 278, 38, 0, "#f0ecde");
+  rr(c, 447, 663, 134, 280, 2, "#f0ecde");
+  rr(c, 694, 638, 31, 292, 0, "#f0ecde");
+  rr(c, 607, 590, 65, 353, 2, "#c1c5bb");
   c.save();
   c.strokeStyle = "#bcc1b8";
   c.lineWidth = 103;
@@ -660,13 +658,11 @@ function drawStreet(c, g, time, w, h, reduced, debug) {
   c.setLineDash([22, 18]);
   c.stroke();
   c.restore();
-  rr(c, 607, 688, 65, 255, 2, "#c1c5bb");
-  rr(c, 447, 663, 134, 280, 2, "#f0ecde");
-  rr(c, 694, 681, 31, 249, 0, "#f0ecde");
-  for (let i = 0; i < 7; i++) rr(c, 603 + i * 11, 590, 7, 67, 0, "#f5f2e7");
+  for (let i = 0; i < 7; i++) rr(c, 503 + i * 11, 521, 7, 97, 0, "#f5f2e7");
+  for (let i = 0; i < 3; i++) rr(c, 610, 643 + i * 11, 59, 6, 0, "#f5f2e7");
   for (let i = 0; i < 10; i++) {
-    drawTree(c, 100 + i * 119, 618, 27);
-    drawTree(c, 108 + i * 116, 860, 24);
+    if (i !== 4) drawTree(c, 100 + i * 119, 618, 27);
+    if (i !== 4 && i !== 5) drawTree(c, 108 + i * 116, 860, 24);
   }
   for (const building of STREET.buildings) drawBuilding(c, building);
   for (const x of [370, 825])
@@ -677,17 +673,10 @@ function drawStreet(c, g, time, w, h, reduced, debug) {
     }
   rr(c, 504, 388, 292, 43, 12, "#faf8eccc");
   text(c, "ДЕРЖПРОМ", 650, 417, 30, C.ink, "center");
-  text(c, "ПРОСПЕКТ НЕЗАВИСИМОСТИ", 950, 592, 17, "#707e73", "center");
-  c.save();
-  c.translate(635, 827);
-  c.rotate(-Math.PI / 2);
-  text(c, "ЮРЫ ЗОЙФЕРА", 0, 0, 13, "#7b877a", "center");
-  c.restore();
   rr(c, 478, 671, 72, 15, 3, "#b18d6d");
   line(c, 485, 679, 485, 694, "#789078", 4);
   line(c, 544, 679, 544, 694, "#789078", 4);
   rr(c, 576, 714, 17, 21, 3, "#899c7a");
-  text(c, "ПЕРЕКУР", 524, 683, 12, "#6e826a", "center");
   if (g.work.police) {
     const arrival = reduced
       ? 1
@@ -723,8 +712,6 @@ function drawStreet(c, g, time, w, h, reduced, debug) {
       );
     c.restore();
   }
-  rr(c, 38, 891, 332, 34, 9, "#faf8eccc");
-  text(c, "ХАРЬКОВ · ВОЗЛЕ ОФИСА", 204, 914, 14, "#738471", "center");
 }
 export function drawScene(
   canvas,

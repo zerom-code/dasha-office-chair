@@ -1,15 +1,15 @@
-const VERSION = "office-chair-v3.0.0";
+const VERSION = "office-chair-v3.0.1";
 const CACHE_PREFIX = `office-chair@${self.registration.scope}:`;
 const CACHE = CACHE_PREFIX + VERSION;
 const ASSETS = [
   "./",
   "./index.html",
   "./v3/style.css",
-  "./v3/app-3.0.0.js",
+  "./v3/app-3.0.1.js",
   "./v3/engine.js",
   "./v3/geometry.js",
   "./v3/workday.js",
-  "./v3/render.js",
+  "./v3/render-3.0.1.js",
   "./v3/icons.js",
   "./v3/customization.js",
   "./v3/content.js",

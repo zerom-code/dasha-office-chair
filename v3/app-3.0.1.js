@@ -15,7 +15,7 @@ import {
   clockLabel,
   stageCount,
 } from "./engine.js";
-import { drawScene, drawWardrobe, drawClothing } from "./render.js";
+import { drawScene, drawWardrobe, drawClothing } from "./render-3.0.1.js";
 import {
   CATALOG,
   DEFAULT_OUTFIT,
@@ -446,8 +446,7 @@ function updateHud() {
         : action
           ? ""
           : "Подойди к отмеченному кругу";
-    $("work-location").textContent =
-      game.area === "street" ? "Юры Зойфера, 3 · Держпром" : "Офис";
+    $("work-location").textContent = game.area === "street" ? "Улица" : "Офис";
     $("work-stress").textContent = `Суета ${Math.round(game.work.stress)}%`;
     $("stress-meter").value = game.work.stress;
     $("game").classList.add("work-mission");
@@ -731,7 +730,7 @@ async function checkOffline() {
         channel.port1.close();
         return;
       }
-      legacyWorker = e.data.version !== "office-chair-v3.0.0";
+      legacyWorker = e.data.version !== "office-chair-v3.0.1";
       cacheReady = !!e.data.ready && !legacyWorker;
       if (legacyWorker && registration?.waiting) {
         $("update-banner").hidden = true;
@@ -802,7 +801,6 @@ function loop(t) {
           if (["pickup", "gate", "stop"].includes(e.type)) tone(523, 0.15);
           if (e.type === "win") win();
           if (e.type === "mode") clearInputs();
-          if (["visitor", "reply", "police"].includes(e.type)) toast(e.text);
           if (e.type === "fall") {
             clearInputs();
             tone(68, 0.4);
