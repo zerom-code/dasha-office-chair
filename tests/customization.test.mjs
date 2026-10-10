@@ -8,7 +8,7 @@ import {
   available,
   validateOutfit,
 } from "../v3/customization.js";
-import { MISSIONS } from "../v3/engine.js";
+import { MISSIONS } from "../v3/engine-3.0.2.js";
 test("every mission has a usable unique reward, including all new walking levels", () => {
   const results = {},
     colors = new Set(),

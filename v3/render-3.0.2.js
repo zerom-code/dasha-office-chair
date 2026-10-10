@@ -1,4 +1,4 @@
-import { OBSTACLES, target, POINTS } from "./engine.js";
+import { OBSTACLES, target, POINTS } from "./engine-3.0.2.js";
 import { outfitColor } from "./customization.js";
 import { PROJECTION_Y, footprintsFor } from "./geometry.js";
 import { STREET, nearbyVisitor } from "./workday.js";
@@ -321,9 +321,10 @@ function drawPlayerChair(c) {
 }
 function drawPerson(c, g, time, reduced, fallen = false) {
   const walking = g.mode === "walk" && Math.hypot(g.vx || 0, g.vy || 0) > 5;
+  // Facing local +Y, Dasha's left is +X and her right is -X.
   for (const [foot, side] of [
-    ["left", -1],
-    ["right", 1],
+    ["left", 1],
+    ["right", -1],
   ]) {
     const push = g.feet?.[foot] || g.anim?.[foot] > 0;
     const stride =

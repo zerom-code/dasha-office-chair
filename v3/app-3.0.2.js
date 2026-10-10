@@ -14,8 +14,8 @@ import {
   workClock,
   clockLabel,
   stageCount,
-} from "./engine.js";
-import { drawScene, drawWardrobe, drawClothing } from "./render-3.0.1.js";
+} from "./engine-3.0.2.js";
+import { drawScene, drawWardrobe, drawClothing } from "./render-3.0.2.js";
 import {
   CATALOG,
   DEFAULT_OUTFIT,
@@ -730,7 +730,7 @@ async function checkOffline() {
         channel.port1.close();
         return;
       }
-      legacyWorker = e.data.version !== "office-chair-v3.0.1";
+      legacyWorker = e.data.version !== "office-chair-v3.0.2";
       cacheReady = !!e.data.ready && !legacyWorker;
       if (legacyWorker && registration?.waiting) {
         $("update-banner").hidden = true;

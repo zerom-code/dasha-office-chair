@@ -11,7 +11,7 @@ import {
   MISSIONS,
   snapshot,
   objective,
-} from "../v3/engine.js";
+} from "../v3/engine-3.0.2.js";
 import { STREET, SHIFT_SECONDS, workClock } from "../v3/workday.js";
 import {
   footprintsFor,

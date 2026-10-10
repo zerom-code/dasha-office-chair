@@ -11,7 +11,7 @@ import {
   OBSTACLES,
   snapshot,
   layoutFor,
-} from "../v3/engine.js";
+} from "../v3/engine-3.0.2.js";
 import { footprintsFor, distanceToSolid } from "../v3/geometry.js";
 const tick = (g, s) => {
   for (let i = 0; i < Math.ceil(s * 120); i++) step(g, 1 / 120);
@@ -153,10 +153,12 @@ test("the lane beneath the container shadows stays open, while container bases a
   assert.ok(g.x <= container.x - 21);
   assert.ok(g.hits > 0);
 });
-test("timeout plays the chair fall once, freezes controls, then reports defeat", () => {
+test("level 13 falls at 30 seconds, freezes controls, then reports defeat once", () => {
   const g = createGame(12);
-  g.time = MISSIONS[12].timeLimit - 0.02;
-  step(g, 0.03);
+  g.time = 29.98;
+  step(g, 0.01);
+  assert.equal(g.phase, "playing");
+  step(g, 0.02);
   assert.equal(g.phase, "falling");
   inputFoot(g, "left", true);
   assert.equal(g.feet.left, false);
